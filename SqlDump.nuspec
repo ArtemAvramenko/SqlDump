@@ -3,12 +3,12 @@
   <metadata>
     <id>SqlDump.Sources</id>
     <title>SqlDump (Source-Only)</title>
-    <version>0.0.1</version>
+    <version>0.0.2</version>
     <authors>Artem Avramenko</authors>
     <owners>ArtemA</owners>
     <projectUrl>https://github.com/ArtemAvramenko/SqlDump</projectUrl>
     <license type="expression">MIT</license>
-    <iconUrl>https://github.com/ArtemAvramenko/SqlDump/SqlDump.png</iconUrl>
+    <iconUrl>https://github.com/ArtemAvramenko/SqlDump/raw/master/SqlDump.png</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <summary>
       Simple SQL Server database dumper.

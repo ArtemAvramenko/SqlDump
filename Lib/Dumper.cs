@@ -31,7 +31,8 @@ FROM INFORMATION_SCHEMA.COLUMNS c
 LEFT JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE k ON
   c.TABLE_SCHEMA = k.TABLE_SCHEMA AND
   c.TABLE_NAME = k.TABLE_NAME AND
-  c.COLUMN_NAME = k.COLUMN_NAME
+  c.COLUMN_NAME = k.COLUMN_NAME AND 
+  OBJECTPROPERTY(OBJECT_ID(k.CONSTRAINT_SCHEMA + '.' + QUOTENAME(k.CONSTRAINT_NAME)), 'IsPrimaryKey') = 1
 WHERE c.TABLE_SCHEMA = @{SchemaParam} AND c.TABLE_NAME = @{TableParam}
 ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
 ";
@@ -57,6 +58,7 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
 
         public void Dump(TextWriter writer)
         {
+            writer.WriteLine("EXEC sp_MSforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL'");
             using (_connection = new SqlConnection(_sqlString))
             {
                 _connection.Open();
@@ -88,6 +90,9 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
                     }
                 }
             }
+            writer.WriteLine();
+            writer.WriteLine("EXEC sp_MSforeachtable 'ALTER TABLE ? WITH CHECK CHECK CONSTRAINT ALL'");
+            InsertGoStatement(writer);
         }
 
         private void DumpTable(TextWriter writer, string schemaName, string tableName)
@@ -127,6 +132,11 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
                 command.CommandText += " ORDER BY " + string.Join(", ", sortColumns.Select(QuoteName));
             }
 
+            void SetIdentityInsert(string value)
+            {
+                writer.WriteLine($"IF OBJECTPROPERTY(OBJECT_ID({fullTableName}), 'TableHasIdentity') = 1 SET IDENTITY_INSERT {fullTableName} {value};");
+            }
+
             var reader = command.ExecuteReader();
 
             var formatters = new List<Func<string>>();
@@ -141,24 +151,20 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
                 return formatter == null;
             });
 
-            writer.WriteLine("-- cr lf");
+            writer.WriteLine();
             writer.WriteLine($"-- Table {fullTableName}");
             var columnList = string.Join(", ", columns.Select(QuoteName));
-
-            void insertGoStatement()
-            {
-                if (UseGoStatements)
-                {
-                    writer.WriteLine("GO;");
-                }
-            }
 
             int statementRows = 0;
             while (reader.Read())
             {
                 if (statementRows % RowsInStatement == 0)
                 {
-                    if (statementRows > 0)
+                    if (statementRows == 0)
+                    {
+                        SetIdentityInsert("ON");
+                    }
+                    else
                     {
                         writer.WriteLine(";");
                     }
@@ -166,7 +172,7 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
                     {
                         if (statementRows > 0)
                         {
-                            insertGoStatement();
+                            InsertGoStatement(writer);
                         }
                     }
                     else if (statementRows / RowsInStatement % StatementsInTransaction == 0)
@@ -174,8 +180,8 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
                         if (statementRows > 0)
                         {
                             writer.WriteLine("COMMIT;");
-                            insertGoStatement();
-                            writer.WriteLine("-- cr lf");
+                            InsertGoStatement(writer);
+                            writer.WriteLine();
                         }
                         writer.WriteLine("BEGIN TRANSACTION;");
                     }
@@ -190,13 +196,23 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
                 statementRows++;
             }
             reader.Close();
-            if (statementRows > 0) {
+            if (statementRows > 0)
+            {
                 writer.WriteLine(";");
                 if (StatementsInTransaction > 0)
                 {
                     writer.WriteLine("COMMIT;");
                 }
-                insertGoStatement();
+                SetIdentityInsert("OFF");
+                InsertGoStatement(writer);
+            }
+        }
+
+        private void InsertGoStatement(TextWriter writer)
+        {
+            if (UseGoStatements)
+            {
+                writer.WriteLine("GO");
             }
         }
 
