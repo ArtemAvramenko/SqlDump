@@ -3,7 +3,7 @@
   <metadata>
     <id>SqlDump.Sources</id>
     <title>SqlDump (Source-Only)</title>
-    <version>0.0.2</version>
+    <version>0.0.3</version>
     <authors>Artem Avramenko</authors>
     <owners>ArtemA</owners>
     <projectUrl>https://github.com/ArtemAvramenko/SqlDump</projectUrl>

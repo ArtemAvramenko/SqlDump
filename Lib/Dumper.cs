@@ -134,7 +134,7 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
 
             void SetIdentityInsert(string value)
             {
-                writer.WriteLine($"IF OBJECTPROPERTY(OBJECT_ID({fullTableName}), 'TableHasIdentity') = 1 SET IDENTITY_INSERT {fullTableName} {value};");
+                writer.WriteLine($"IF OBJECTPROPERTY(OBJECT_ID('{fullTableName}'), 'TableHasIdentity') = 1 SET IDENTITY_INSERT {fullTableName} {value};");
             }
 
             var reader = command.ExecuteReader();
