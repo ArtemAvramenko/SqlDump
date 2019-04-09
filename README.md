@@ -17,3 +17,4 @@ private void GenerateBackupScript(string connectionString, string outputFile)
     }
 }
 ```
+See [result](Tests/Data.sql)

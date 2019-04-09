@@ -41,11 +41,14 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
 
         private SqlCommand _columnsCommand;
 
-        private readonly string _sqlString;
-
-        public Dumper(string sqlString)
+        public Dumper(string connectionString)
         {
-            _sqlString = sqlString;
+            _connection = new SqlConnection(connectionString);
+        }
+
+        public Dumper(SqlConnection connection)
+        {
+            _connection = connection;
         }
 
         public bool UseGoStatements { get; set; } = true;
@@ -58,38 +61,38 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
 
         public void Dump(TextWriter writer)
         {
-            writer.WriteLine("EXEC sp_MSforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL'");
-            using (_connection = new SqlConnection(_sqlString))
-            {
+            if (_connection.State == ConnectionState.Closed) {
                 _connection.Open();
+            }
 
-                _columnsCommand = _connection.CreateCommand();
-                _columnsCommand.CommandText = ColumnsCommand;
-                _columnsCommand.Parameters.Add(SchemaParam, SqlDbType.NVarChar);
-                _columnsCommand.Parameters.Add(TableParam, SqlDbType.NVarChar);
+            writer.WriteLine("EXEC sp_MSforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL'");
+            _columnsCommand = _connection.CreateCommand();
+            _columnsCommand.CommandText = ColumnsCommand;
+            _columnsCommand.Parameters.Add(SchemaParam, SqlDbType.NVarChar);
+            _columnsCommand.Parameters.Add(TableParam, SqlDbType.NVarChar);
 
-                var tables = new List<(string, string)>();
-                var tablesCommand = _connection.CreateCommand();
-                tablesCommand.CommandText = TablesCommand;
-                using (var tableReader = tablesCommand.ExecuteReader())
+            var tables = new List<(string, string)>();
+            var tablesCommand = _connection.CreateCommand();
+            tablesCommand.CommandText = TablesCommand;
+            using (var tableReader = tablesCommand.ExecuteReader())
+            {
+                while (tableReader.Read())
                 {
-                    while (tableReader.Read())
-                    {
-                        tables.Add((tableReader.GetString(0), tableReader.GetString(1)));
-                    }
-                }
-                tables = tables
-                    .OrderBy(_ => _.Item1, StringComparer.InvariantCultureIgnoreCase)
-                    .ThenBy(_ => _.Item2, StringComparer.InvariantCultureIgnoreCase)
-                    .ToList();
-                foreach (var (schemaName, tableName) in tables)
-                {
-                    if (IgnoredTableNames == null || !IgnoredTableNames.Contains(tableName))
-                    {
-                        DumpTable(writer, schemaName, tableName);
-                    }
+                    tables.Add((tableReader.GetString(0), tableReader.GetString(1)));
                 }
             }
+            tables = tables
+                .OrderBy(_ => _.Item1, StringComparer.InvariantCultureIgnoreCase)
+                .ThenBy(_ => _.Item2, StringComparer.InvariantCultureIgnoreCase)
+                .ToList();
+            foreach (var (schemaName, tableName) in tables)
+            {
+                if (IgnoredTableNames == null || !IgnoredTableNames.Contains(tableName))
+                {
+                    DumpTable(writer, schemaName, tableName);
+                }
+            }
+
             writer.WriteLine();
             writer.WriteLine("EXEC sp_MSforeachtable 'ALTER TABLE ? WITH CHECK CHECK CONSTRAINT ALL'");
             InsertGoStatement(writer);
