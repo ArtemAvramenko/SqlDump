@@ -18,3 +18,6 @@ private void GenerateBackupScript(string connectionString, string outputFile)
 }
 ```
 See [result](Tests/Data.sql)
+
+# Lecacy System.Data.SqlClient
+Add SQL_CLIENT_LEGACY to project defines.

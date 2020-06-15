@@ -3,7 +3,7 @@
   <metadata>
     <id>SqlDump.Sources</id>
     <title>SqlDump (Source-Only)</title>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <authors>Artem Avramenko</authors>
     <owners>ArtemA</owners>
     <projectUrl>https://github.com/ArtemAvramenko/SqlDump</projectUrl>
@@ -16,7 +16,7 @@
     <description>
       Simple SQL Server database dumper. Shipped as source-only NuGet package.
     </description>
-    <copyright>Copyright (c) 2019 Artem Avramenko</copyright>
+    <copyright>Copyright (c) 2020 Artem Avramenko</copyright>
     <tags>sql dump dumper backup script generator</tags>
   </metadata>
   <files>

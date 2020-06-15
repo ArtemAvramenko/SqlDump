@@ -1,15 +1,19 @@
 ﻿// <copyright file="Dumper.cs">
 //   SqlDump - Simple SQL Server database dumper
-//   (c) 2019 Artem Avramenko. https://github.com/ArtemAvramenko/SqlDump
+//   (c) 2020 Artem Avramenko. https://github.com/ArtemAvramenko/SqlDump
 //   License: MIT
 // </copyright>
 
 using System;
 using System.Collections.Generic;
 using System.Data;
-using System.Data.SqlClient;
 using System.IO;
 using System.Linq;
+#if SQL_CLIENT_LEGACY
+using System.Data.SqlClient;
+#else
+using Microsoft.Data.SqlClient;
+#endif
 
 namespace SqlDumper
 {
