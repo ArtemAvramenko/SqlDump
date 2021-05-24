@@ -1,6 +1,6 @@
 ﻿// <copyright file="Dumper.cs">
 //   SqlDump - Simple SQL Server database dumper
-//   (c) 2020 Artem Avramenko. https://github.com/ArtemAvramenko/SqlDump
+//   (c) 2021 Artem Avramenko. https://github.com/ArtemAvramenko/SqlDump
 //   License: MIT
 // </copyright>
 
@@ -9,10 +9,15 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
+
 #if SQL_CLIENT_LEGACY
+
 using System.Data.SqlClient;
+
 #else
+
 using Microsoft.Data.SqlClient;
+
 #endif
 
 namespace SqlDumper
@@ -22,6 +27,8 @@ namespace SqlDumper
         private const string SchemaParam = "schema";
 
         private const string TableParam = "table";
+
+        private const string SchemaAndTableParam = "schematable";
 
         private readonly string TablesCommand = @"
 SELECT TABLE_SCHEMA, TABLE_NAME
@@ -35,13 +42,14 @@ FROM INFORMATION_SCHEMA.COLUMNS c
 LEFT JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE k ON
   c.TABLE_SCHEMA = k.TABLE_SCHEMA AND
   c.TABLE_NAME = k.TABLE_NAME AND
-  c.COLUMN_NAME = k.COLUMN_NAME AND 
+  c.COLUMN_NAME = k.COLUMN_NAME AND
   OBJECTPROPERTY(OBJECT_ID(k.CONSTRAINT_SCHEMA + '.' + QUOTENAME(k.CONSTRAINT_NAME)), 'IsPrimaryKey') = 1
 WHERE c.TABLE_SCHEMA = @{SchemaParam} AND c.TABLE_NAME = @{TableParam}
+  AND COLUMNPROPERTY(OBJECT_ID(@{SchemaAndTableParam}), c.COLUMN_NAME, 'IsComputed') = 0
 ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
 ";
 
-        private SqlConnection _connection;
+        private readonly SqlConnection _connection;
 
         private SqlCommand _columnsCommand;
 
@@ -65,7 +73,8 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
 
         public void Dump(TextWriter writer)
         {
-            if (_connection.State == ConnectionState.Closed) {
+            if (_connection.State == ConnectionState.Closed)
+            {
                 _connection.Open();
             }
 
@@ -74,6 +83,7 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
             _columnsCommand.CommandText = ColumnsCommand;
             _columnsCommand.Parameters.Add(SchemaParam, SqlDbType.NVarChar);
             _columnsCommand.Parameters.Add(TableParam, SqlDbType.NVarChar);
+            _columnsCommand.Parameters.Add(SchemaAndTableParam, SqlDbType.NVarChar);
 
             var tables = new List<(string, string)>();
             var tablesCommand = _connection.CreateCommand();
@@ -104,9 +114,12 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
 
         private void DumpTable(TextWriter writer, string schemaName, string tableName)
         {
+            var fullTableName = $"{QuoteName(schemaName)}.{QuoteName(tableName)}";
+
             var sortColumns = new List<string>();
             _columnsCommand.Parameters[SchemaParam].Value = schemaName;
             _columnsCommand.Parameters[TableParam].Value = tableName;
+            _columnsCommand.Parameters[SchemaAndTableParam].Value = fullTableName;
             var columns = new List<string>();
             var selectList = new List<string>();
             using (var metaReader = _columnsCommand.ExecuteReader())
@@ -131,7 +144,6 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
                 metaReader.Close();
             }
 
-            var fullTableName = $"{QuoteName(schemaName)}.{QuoteName(tableName)}";
             var command = _connection.CreateCommand();
             command.CommandText = $"SELECT {string.Join(", ", selectList)} FROM {fullTableName}";
             if (sortColumns.Count > 0)

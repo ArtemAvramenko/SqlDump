@@ -1,6 +1,6 @@
 ﻿// <copyright file="Formatters.cs">
 //   SqlDump - Simple SQL Server database dumper
-//   (c) 2020 Artem Avramenko. https://github.com/ArtemAvramenko/SqlDump
+//   (c) 2021 Artem Avramenko. https://github.com/ArtemAvramenko/SqlDump
 //   License: MIT
 // </copyright>
 
