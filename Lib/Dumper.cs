@@ -22,8 +22,20 @@ using Microsoft.Data.SqlClient;
 
 namespace SqlDumper
 {
-    internal class Dumper
+    public class Dumper
     {
+        #region OnDumping
+        public const int DumpingInvokeBuffer = 10000;
+
+        private void OnDumpingInvoke(string text)
+        {
+            if (OnDumping != null)
+                OnDumping.Invoke(this, new DumperEventArgs(text));
+        }
+
+        public event EventHandler<DumperEventArgs> OnDumping;
+        #endregion
+
         private const string SchemaParam = "schema";
 
         private const string TableParam = "table";
@@ -85,6 +97,8 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
             _columnsCommand.Parameters.Add(TableParam, SqlDbType.NVarChar);
             _columnsCommand.Parameters.Add(SchemaAndTableParam, SqlDbType.NVarChar);
 
+            OnDumpingInvoke("The process has been started.");
+
             var tables = new List<(string, string)>();
             var tablesCommand = _connection.CreateCommand();
             tablesCommand.CommandText = TablesCommand;
@@ -92,25 +106,37 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
             {
                 while (tableReader.Read())
                 {
+                    OnDumpingInvoke($"The table {tableReader.GetString(0)}.{tableReader.GetString(1)} has been added to dump list.");
+
                     tables.Add((tableReader.GetString(0), tableReader.GetString(1)));
                 }
             }
+
+            OnDumpingInvoke("The database definition has been put on the memory, now starting the dump process.");
+
             tables = tables
                 .OrderBy(_ => _.Item1, StringComparer.InvariantCultureIgnoreCase)
                 .ThenBy(_ => _.Item2, StringComparer.InvariantCultureIgnoreCase)
                 .ToList();
             foreach (var (schemaName, tableName) in tables)
             {
-                if (IgnoredTableNames == null || !IgnoredTableNames.Contains(tableName))
+                if (IgnoredTableNames != null && IgnoredTableNames.Contains(tableName))
                 {
-                    DumpTable(writer, schemaName, tableName);
+                    OnDumpingInvoke($"The table {schemaName}.{tableName} has been ignored by user definition.");
+                    continue;
                 }
+
+                OnDumpingInvoke($"Dumping {schemaName}.{tableName}...");
+
+                DumpTable(writer, schemaName, tableName);
+
+                OnDumpingInvoke($"The table {schemaName}.{tableName} has been dumped");
             }
 
             writer.WriteLine();
             writer.WriteLine("EXEC sp_MSforeachtable 'ALTER TABLE ? WITH CHECK CHECK CONSTRAINT ALL'");
             InsertGoStatement(writer);
-        }
+        }        
 
         private void DumpTable(TextWriter writer, string schemaName, string tableName)
         {
@@ -213,10 +239,18 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
                 var values = formatters.ConvertAll(x => x());
                 writer.Write($"  ({string.Join(", ", values)})");
                 statementRows++;
+
+                //For large tables, invoke each DumpingInvokeBuffer registers
+                if (statementRows % DumpingInvokeBuffer == 0)
+                {
+                    OnDumpingInvoke($"{statementRows} rows dumped...");
+                }
             }
             reader.Close();
             if (statementRows > 0)
             {
+                OnDumpingInvoke($"{statementRows} rows dumped...");
+
                 writer.WriteLine(";");
                 if (StatementsInTransaction > 0)
                 {
