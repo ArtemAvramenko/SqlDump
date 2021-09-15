@@ -136,6 +136,8 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
             writer.WriteLine();
             writer.WriteLine("EXEC sp_MSforeachtable 'ALTER TABLE ? WITH CHECK CHECK CONSTRAINT ALL'");
             InsertGoStatement(writer);
+
+            OnDumpingInvoke("The process has been ended.");
         }        
 
         private void DumpTable(TextWriter writer, string schemaName, string tableName)
