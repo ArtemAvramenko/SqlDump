@@ -21,3 +21,22 @@ See [result](Tests/Data.sql)
 
 # Lecacy System.Data.SqlClient
 Add SQL_CLIENT_LEGACY to project defines.
+
+# ProgressChanged event
+``` csharp
+    dumper.ProgressChanged += (sender, e) =>
+    {
+        if (e.RowsDumped == 0)
+        {
+            logWriter.WriteLine($"Dumping {e.SchemaName}.{e.TableName}...");
+        }
+        if (e.RowsDumped > 0 && (e.IsCompleted || e.RowsDumped % 10000 == 0))
+        {
+            logWriter.WriteLine($"{e.RowsDumped} rows dumped...");
+        }
+        if (e.IsCompleted)
+        {
+            logWriter.WriteLine($"The table {e.SchemaName}.{e.TableName} has been dumped");
+        }
+    };
+```

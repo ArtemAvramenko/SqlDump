@@ -22,20 +22,8 @@ using Microsoft.Data.SqlClient;
 
 namespace SqlDumper
 {
-    public class Dumper
+    partial class Dumper : IDisposable
     {
-        #region OnDumping
-        public const int DumpingInvokeBuffer = 10000;
-
-        private void OnDumpingInvoke(string text)
-        {
-            if (OnDumping != null)
-                OnDumping.Invoke(this, new DumperEventArgs(text));
-        }
-
-        public event EventHandler<DumperEventArgs> OnDumping;
-        #endregion
-
         private const string SchemaParam = "schema";
 
         private const string TableParam = "table";
@@ -63,16 +51,16 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
 
         private readonly SqlConnection _connection;
 
-        private SqlCommand _columnsCommand;
-
-        public Dumper(string connectionString)
-        {
-            _connection = new SqlConnection(connectionString);
-        }
+        private bool _shouldDisposed;
 
         public Dumper(SqlConnection connection)
         {
             _connection = connection;
+        }
+
+        public Dumper(string connectionString) : this(new SqlConnection(connectionString))
+        {
+            _shouldDisposed = true;
         }
 
         public bool UseGoStatements { get; set; } = true;
@@ -83,6 +71,8 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
 
         public string[] IgnoredTableNames { get; set; }
 
+        public event EventHandler<ProgressData> ProgressChanged;
+
         public void Dump(TextWriter writer)
         {
             if (_connection.State == ConnectionState.Closed)
@@ -91,168 +81,179 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
             }
 
             writer.WriteLine("EXEC sp_MSforeachtable 'ALTER TABLE ? NOCHECK CONSTRAINT ALL'");
-            _columnsCommand = _connection.CreateCommand();
-            _columnsCommand.CommandText = ColumnsCommand;
-            _columnsCommand.Parameters.Add(SchemaParam, SqlDbType.NVarChar);
-            _columnsCommand.Parameters.Add(TableParam, SqlDbType.NVarChar);
-            _columnsCommand.Parameters.Add(SchemaAndTableParam, SqlDbType.NVarChar);
-
-            OnDumpingInvoke("The process has been started.");
 
             var tables = new List<(string, string)>();
-            var tablesCommand = _connection.CreateCommand();
-            tablesCommand.CommandText = TablesCommand;
-            using (var tableReader = tablesCommand.ExecuteReader())
+            using (var tablesCommand = _connection.CreateCommand())
             {
-                while (tableReader.Read())
+                tablesCommand.CommandText = TablesCommand;
+                using (var tableReader = tablesCommand.ExecuteReader())
                 {
-                    OnDumpingInvoke($"The table {tableReader.GetString(0)}.{tableReader.GetString(1)} has been added to dump list.");
-
-                    tables.Add((tableReader.GetString(0), tableReader.GetString(1)));
+                    while (tableReader.Read())
+                    {
+                        tables.Add((tableReader.GetString(0), tableReader.GetString(1)));
+                    }
                 }
             }
-
-            OnDumpingInvoke("The database definition has been put on the memory, now starting the dump process.");
-
             tables = tables
                 .OrderBy(_ => _.Item1, StringComparer.InvariantCultureIgnoreCase)
                 .ThenBy(_ => _.Item2, StringComparer.InvariantCultureIgnoreCase)
                 .ToList();
             foreach (var (schemaName, tableName) in tables)
             {
-                if (IgnoredTableNames != null && IgnoredTableNames.Contains(tableName))
+                if (IgnoredTableNames == null || !IgnoredTableNames.Contains(tableName))
                 {
-                    OnDumpingInvoke($"The table {schemaName}.{tableName} has been ignored by user definition.");
-                    continue;
+                    DumpTable(writer, schemaName, tableName);
                 }
-
-                OnDumpingInvoke($"Dumping {schemaName}.{tableName}...");
-
-                DumpTable(writer, schemaName, tableName);
-
-                OnDumpingInvoke($"The table {schemaName}.{tableName} has been dumped");
             }
 
             writer.WriteLine();
             writer.WriteLine("EXEC sp_MSforeachtable 'ALTER TABLE ? WITH CHECK CHECK CONSTRAINT ALL'");
             InsertGoStatement(writer);
+        }
 
-            OnDumpingInvoke("The process has been ended.");
-        }        
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (_shouldDisposed)
+            {
+                if (disposing)
+                {
+                    _connection.Dispose();
+                }
+                _shouldDisposed = false;
+            }
+        }
+
+        private TableInfo GetTableInfo(string schemaName, string tableName)
+        {
+            var fullTableName = $"{QuoteName(schemaName)}.{QuoteName(tableName)}";
+            var table = new TableInfo(fullTableName);
+
+            using (var columnsCommand = _connection.CreateCommand())
+            {
+                columnsCommand.CommandText = ColumnsCommand;
+                columnsCommand.Parameters.Add(SchemaParam, SqlDbType.NVarChar);
+                columnsCommand.Parameters.Add(TableParam, SqlDbType.NVarChar);
+                columnsCommand.Parameters.Add(SchemaAndTableParam, SqlDbType.NVarChar);
+                columnsCommand.Parameters[SchemaParam].Value = schemaName;
+                columnsCommand.Parameters[TableParam].Value = tableName;
+                columnsCommand.Parameters[SchemaAndTableParam].Value = fullTableName;
+
+                using (var metaReader = columnsCommand.ExecuteReader())
+                {
+                    while (metaReader.Read())
+                    {
+                        var columnName = metaReader.GetString(0);
+                        var typeName = metaReader.GetString(1);
+                        var isSorted = !metaReader.IsDBNull(2);
+                        table.Columns.Add(columnName);
+                        if (isSorted)
+                        {
+                            table.SortColumns.Add(columnName);
+                        }
+                        columnName = QuoteName(columnName);
+                        if (Formatters.IsSpecialType(typeName))
+                        {
+                            columnName = $"{columnName}.ToString() as {columnName}";
+                        }
+                        table.SelectList.Add(columnName);
+                    }
+                }
+            }
+            return table;
+        }
 
         private void DumpTable(TextWriter writer, string schemaName, string tableName)
         {
-            var fullTableName = $"{QuoteName(schemaName)}.{QuoteName(tableName)}";
+            var table = GetTableInfo(schemaName, tableName);
+            var fullTableName = table.FullTableName;
 
-            var sortColumns = new List<string>();
-            _columnsCommand.Parameters[SchemaParam].Value = schemaName;
-            _columnsCommand.Parameters[TableParam].Value = tableName;
-            _columnsCommand.Parameters[SchemaAndTableParam].Value = fullTableName;
-            var columns = new List<string>();
-            var selectList = new List<string>();
-            using (var metaReader = _columnsCommand.ExecuteReader())
-            {
-                while (metaReader.Read())
-                {
-                    var columnName = metaReader.GetString(0);
-                    var typeName = metaReader.GetString(1);
-                    var isSorted = !metaReader.IsDBNull(2);
-                    columns.Add(columnName);
-                    if (isSorted)
-                    {
-                        sortColumns.Add(columnName);
-                    }
-                    columnName = QuoteName(columnName);
-                    if (Formatters.IsSpecialType(typeName))
-                    {
-                        columnName = $"{columnName}.ToString() as {columnName}";
-                    }
-                    selectList.Add(columnName);
-                }
-                metaReader.Close();
-            }
-
-            var command = _connection.CreateCommand();
-            command.CommandText = $"SELECT {string.Join(", ", selectList)} FROM {fullTableName}";
-            if (sortColumns.Count > 0)
-            {
-                command.CommandText += " ORDER BY " + string.Join(", ", sortColumns.Select(QuoteName));
-            }
+            int statementRows = 0;
 
             void SetIdentityInsert(string value)
             {
                 writer.WriteLine($"IF OBJECTPROPERTY(OBJECT_ID('{fullTableName}'), 'TableHasIdentity') = 1 SET IDENTITY_INSERT {fullTableName} {value};");
             }
 
-            var reader = command.ExecuteReader();
-
-            var formatters = new List<Func<string>>();
-            columns.RemoveAll(column =>
+            void DoProgress(bool isCompleted)
             {
-                var ordinal = reader.GetOrdinal(column);
-                var formatter = Formatters.GetFormatter(reader, ordinal);
-                if (formatter != null)
-                {
-                    formatters.Add(formatter);
-                }
-                return formatter == null;
-            });
+                ProgressChanged?.Invoke(this, new ProgressData(schemaName, tableName, statementRows, isCompleted));
+            }
 
-            writer.WriteLine();
-            writer.WriteLine($"-- Table {fullTableName}");
-            var columnList = string.Join(", ", columns.Select(QuoteName));
-
-            int statementRows = 0;
-            while (reader.Read())
+            using (var dataCommand = _connection.CreateCommand())
             {
-                if (statementRows % RowsInStatement == 0)
+                dataCommand.CommandText = $"SELECT {string.Join(", ", table.SelectList)} FROM {fullTableName}";
+                if (table.SortColumns.Count > 0)
                 {
-                    if (statementRows == 0)
-                    {
-                        SetIdentityInsert("ON");
-                    }
-                    else
-                    {
-                        writer.WriteLine(";");
-                    }
-                    if (StatementsInTransaction == 0)
-                    {
-                        if (statementRows > 0)
-                        {
-                            InsertGoStatement(writer);
-                        }
-                    }
-                    else if (statementRows / RowsInStatement % StatementsInTransaction == 0)
-                    {
-                        if (statementRows > 0)
-                        {
-                            writer.WriteLine("COMMIT;");
-                            InsertGoStatement(writer);
-                            writer.WriteLine();
-                        }
-                        writer.WriteLine("BEGIN TRANSACTION;");
-                    }
-                    writer.WriteLine($"INSERT INTO {fullTableName} ({columnList}) VALUES");
+                    dataCommand.CommandText += " ORDER BY " + string.Join(", ", table.SortColumns.Select(QuoteName));
                 }
-                else
-                {
-                    writer.WriteLine(",");
-                }
-                var values = formatters.ConvertAll(x => x());
-                writer.Write($"  ({string.Join(", ", values)})");
-                statementRows++;
 
-                //For large tables, invoke each DumpingInvokeBuffer registers
-                if (statementRows % DumpingInvokeBuffer == 0)
+                using (var reader = dataCommand.ExecuteReader())
                 {
-                    OnDumpingInvoke($"{statementRows} rows dumped...");
+                    var formatters = table.Columns
+                        .Select(column =>
+                        {
+                            var ordinal = reader.GetOrdinal(column);
+                            var formatter = Formatters.GetFormatter(reader, ordinal);
+                            return new { column, formatter };
+                        })
+                        .Where(_ => _.formatter != null)
+                        .ToList();
+
+                    writer.WriteLine();
+                    writer.WriteLine($"-- Table {fullTableName}");
+                    var columnList = string.Join(", ", formatters.Select(f => QuoteName(f.column)));
+
+                    while (reader.Read())
+                    {
+                        DoProgress(false);
+                        if (statementRows % RowsInStatement == 0)
+                        {
+                            if (statementRows == 0)
+                            {
+                                SetIdentityInsert("ON");
+                            }
+                            else
+                            {
+                                writer.WriteLine(";");
+                            }
+                            if (StatementsInTransaction == 0)
+                            {
+                                if (statementRows > 0)
+                                {
+                                    InsertGoStatement(writer);
+                                }
+                            }
+                            else if (statementRows / RowsInStatement % StatementsInTransaction == 0)
+                            {
+                                if (statementRows > 0)
+                                {
+                                    writer.WriteLine("COMMIT;");
+                                    InsertGoStatement(writer);
+                                    writer.WriteLine();
+                                }
+                                writer.WriteLine("BEGIN TRANSACTION;");
+                            }
+                            writer.WriteLine($"INSERT INTO {fullTableName} ({columnList}) VALUES");
+                        }
+                        else
+                        {
+                            writer.WriteLine(",");
+                        }
+                        var values = formatters.ConvertAll(x => x.formatter());
+                        writer.Write($"  ({string.Join(", ", values)})");
+                        statementRows++;
+                    }
                 }
             }
-            reader.Close();
+            DoProgress(true);
             if (statementRows > 0)
             {
-                OnDumpingInvoke($"{statementRows} rows dumped...");
-
                 writer.WriteLine(";");
                 if (StatementsInTransaction > 0)
                 {
@@ -274,6 +275,35 @@ ORDER BY ISNULL(k.ORDINAL_POSITION, 30000), 1
         private string QuoteName(string name)
         {
             return $"[{name}]";
+        }
+
+        private class TableInfo
+        {
+            public TableInfo(string fullTableName) => FullTableName = fullTableName;
+
+            public string FullTableName { get; }
+            public List<string> SortColumns { get; } = new List<string>();
+            public List<string> Columns { get; } = new List<string>();
+            public List<string> SelectList { get; } = new List<string>();
+        }
+
+        public class ProgressData
+        {
+            public ProgressData(string schemaName, string tableName, int rowsDumped, bool isCompleted)
+            {
+                SchemaName = schemaName;
+                TableName = tableName;
+                RowsDumped = rowsDumped;
+                IsCompleted = isCompleted;
+            }
+
+            public string SchemaName { get; }
+
+            public string TableName { get; }
+
+            public int RowsDumped { get; }
+
+            public bool IsCompleted { get; }
         }
     }
 }
