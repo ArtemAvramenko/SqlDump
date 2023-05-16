@@ -10,6 +10,8 @@
     <license type="expression">MIT</license>
     <iconUrl>https://github.com/ArtemAvramenko/SqlDump/raw/master/SqlDump.png</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <repositoryUrl>https://github.com/ArtemAvramenko/SqlDump</repositoryUrl>
+    <repositoryType>git</repositoryType>
     <summary>
       Simple SQL Server database dumper.
     </summary>
