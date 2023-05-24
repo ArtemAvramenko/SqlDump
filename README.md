@@ -1,5 +1,5 @@
 # SqlDump
-Simple SQL Server database dumper. Shipped as source-only NuGet package.
+Simple SQL Server database dumper. Shipped as source-only [NuGet package](https://www.nuget.org/packages/SqlDump.Sources).
 
 # Installing
 * Package Manager: `Install-Package SqlDump.Sources`
