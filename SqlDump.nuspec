@@ -18,7 +18,7 @@
     <description>
       Simple SQL Server database dumper. Shipped as source-only NuGet package.
     </description>
-    <copyright>Copyright (c) 2021 Artem Avramenko</copyright>
+    <copyright>Copyright (c) 2023 Artem Avramenko</copyright>
     <tags>ms sql dump dumper backup script generator</tags>
   </metadata>
   <files>
