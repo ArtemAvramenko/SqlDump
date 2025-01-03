@@ -1,6 +1,6 @@
 // <copyright file="Formatters.cs">
 //   SqlDump - Simple SQL Server database dumper
-//   (c) 2023 Artem Avramenko. https://github.com/ArtemAvramenko/SqlDump
+//   (c) 2025 Artem Avramenko. https://github.com/ArtemAvramenko/SqlDump
 //   License: MIT
 // </copyright>
 
@@ -27,25 +27,26 @@ namespace SqlDumper
         {
             private static readonly Dictionary<string, Func<object, string>> _sqlTypeFormatters =
                 new Dictionary<string, Func<object, string>>()
-                {
-                { "date", x => string.Format("'{0:yyyy-MM-dd}'", x) },
-                { "datetime", x => FormatDateTime(((SqlDateTime)x).Value, precision:"fff")},
-                { "decimal", x => x.ToString() },
-                { "xml", x => FormatString(((SqlXml)x).Value)}
+                    {
+                    { "date", x => string.Format("'{0:yyyy-MM-dd}'", x) },
+                    { "datetime", x => FormatDateTime(((SqlDateTime)x).Value, precision:"fff")},
+                    { "decimal", x => x.ToString() },
+                    { "xml", x => FormatString(((SqlXml)x).Value)}
                 };
 
             private static readonly Dictionary<Type, Func<object, string>> _clrTypeFormatters =
                 new Dictionary<Type, Func<object, string>>()
                 {
-                (string x) => FormatString(x),
-                (DateTime x) => FormatDateTime(x),
-                (DateTimeOffset x) =>
-                    $"'{FormatDateTime(x.DateTime, quote:false)}" +
-                    $"{x.ToString("zzz", CultureInfo.InvariantCulture)}'",
-                (TimeSpan x) => FormatDateTime(new DateTime(x.Ticks), date: false),
-                (bool x) => x ? "1" : "0",
-                (byte[] x) => "0x" + BitConverter.ToString(x).Replace("-",""),
-                (Guid x) => $"'{x}'"
+                    (string x) => FormatString(x),
+                    (DateTime x) => FormatDateTime(x),
+                    (DateTimeOffset x) =>
+                        $"'{FormatDateTime(x.DateTime, quote:false)}" +
+                        $"{x.ToString("zzz", CultureInfo.InvariantCulture)}'",
+                    (TimeSpan x) => FormatDateTime(new DateTime(x.Ticks), date: false),
+                    (bool x) => x ? "1" : "0",
+                    (byte[] x) => "0x" + BitConverter.ToString(x).Replace("-",""),
+                    (Guid x) => $"'{x}'",
+                    (object x) => FormatVariant(x)
                 };
 
             private static readonly string[] _ignoredSqlTypes = new[] { "timestamp" };
@@ -74,14 +75,7 @@ namespace SqlDumper
                 }
                 if (!_clrTypeFormatters.TryGetValue(reader.GetFieldType(ordinal), out var clrFormatter))
                 {
-                    clrFormatter = value =>
-                    {
-                        if (value is IFormattable formattable)
-                        {
-                            return formattable.ToString(null, CultureInfo.InvariantCulture);
-                        }
-                        return value.ToString();
-                    };
+                    clrFormatter = FormatVariant;
                 }
                 return () =>
                 {
@@ -94,6 +88,19 @@ namespace SqlDumper
                 };
             }
 
+            private static string FormatVariant(object value)
+            {
+                //TODO: add cast
+                if (_clrTypeFormatters.TryGetValue(value.GetType(), out var valueFormatter))
+                {
+                    return valueFormatter(value);
+                }
+                if (value is IFormattable formattable)
+                {
+                    return formattable.ToString(null, CultureInfo.InvariantCulture);
+                }
+                return FormatString(value.ToString());
+            }
 
             private static string FormatDateTime(
                 DateTime x,

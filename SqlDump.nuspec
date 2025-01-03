@@ -1,28 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
-  <metadata>
-    <id>SqlDump.Sources</id>
-    <title>SqlDump (Source-Only)</title>
-    <version>1.4.0</version>
-    <authors>Artem Avramenko</authors>
-    <owners>ArtemA</owners>
-    <projectUrl>https://github.com/ArtemAvramenko/SqlDump</projectUrl>
-    <license type="expression">MIT</license>
-    <iconUrl>https://github.com/ArtemAvramenko/SqlDump/raw/master/SqlDump.png</iconUrl>
-    <requireLicenseAcceptance>false</requireLicenseAcceptance>
-    <repositoryUrl>https://github.com/ArtemAvramenko/SqlDump</repositoryUrl>
-    <repositoryType>git</repositoryType>
-    <summary>
-      Simple SQL Server database dumper.
-    </summary>
-    <description>
-      Simple SQL Server database dumper. Shipped as source-only NuGet package.
-    </description>
-    <copyright>Copyright (c) 2023 Artem Avramenko</copyright>
-    <tags>ms sql dump dumper backup script generator</tags>
-  </metadata>
-  <files>
-    <file src="Lib\*.cs" target="contentFiles/cs/any/SqlDump.Sources" />
-    <file src="Lib\*.cs" target="content/App_Packages/SqlDump.Sources" />
-  </files>
+	<metadata>
+		<id>SqlDump.Sources</id>
+		<title>SqlDump (Source-Only)</title>
+		<version>1.5.0</version>
+		<authors>Artem Avramenko</authors>
+		<owners>ArtemA</owners>
+		<projectUrl>https://github.com/ArtemAvramenko/SqlDump</projectUrl>
+		<license type="expression">MIT</license>
+		<iconUrl>https://github.com/ArtemAvramenko/SqlDump/raw/master/SqlDump.png</iconUrl>
+		<requireLicenseAcceptance>false</requireLicenseAcceptance>
+		<repository type="git" url="https://github.com/ArtemAvramenko/SqlDump"/>
+		<summary>
+			Simple SQL Server database dumper.
+		</summary>
+		<description>
+			Simple SQL Server database dumper. Shipped as source-only NuGet package.
+		</description>
+		<copyright>Copyright (c) 2025 Artem Avramenko</copyright>
+		<tags>ms sql dump dumper backup script generator</tags>
+	</metadata>
+	<files>
+		<file src="Lib\*.cs" target="contentFiles/cs/any/SqlDump.Sources" />
+		<file src="Lib\*.cs" target="content/App_Packages/SqlDump.Sources" />
+	</files>
 </package>

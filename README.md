@@ -1,11 +1,11 @@
 # SqlDump
 Simple SQL Server database dumper. Shipped as source-only [NuGet package](https://www.nuget.org/packages/SqlDump.Sources).
 
-# Installing
+## Installing
 * Package Manager: `Install-Package SqlDump.Sources`
 * .NET command line: `dotnet add package SqlDump.Sources`
 
-# Example
+## Example
 ``` csharp
 private void GenerateBackupScript(string connectionString, string outputFile)
 {
@@ -19,10 +19,13 @@ private void GenerateBackupScript(string connectionString, string outputFile)
 ```
 See [result](https://raw.githubusercontent.com/ArtemAvramenko/SqlDump/master/Tests/Data.sql)
 
-# Lecacy System.Data.SqlClient
+## Support for sql_variant type
+Support for the sql_variant type is still very limited and requires setting the RowsInStatement to 1.
+
+## Lecacy System.Data.SqlClient
 Add SQL_CLIENT_LEGACY to project defines.
 
-# ProgressChanged event
+## ProgressChanged Event
 ``` csharp
     dumper.ProgressChanged += (sender, e) =>
     {
