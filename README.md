@@ -19,6 +19,14 @@ private void GenerateBackupScript(string connectionString, string outputFile)
 ```
 See [result](https://raw.githubusercontent.com/ArtemAvramenko/SqlDump/master/Tests/Data.sql)
 
+## Options
+ Property                      | Type        | Default Value | Note
+ ----------------------------- | ----------- | ------------- |-----
+ **`StatementsInTransaction`** | `int`       | `1000`        | `0` - do not use `BEGIN TRANSACTION`
+ **`RowsInStatement`**         | `int`       | `100`         | `1` - separate `INSERT` for each row of data
+ **`UseGoStatements`**         | `bool`      | `true`        | `true` - add `GO` after each 'COMMIT' (after each `INSERT`, if transactions are not explicitly used)
+ **`IgnoredTableNames`**       | `string[]?` | `null`        | List of tables that will not be included in the dump
+
 ## Support for sql_variant type
 Support for the sql_variant type is still very limited and requires setting the RowsInStatement to 1.
 
